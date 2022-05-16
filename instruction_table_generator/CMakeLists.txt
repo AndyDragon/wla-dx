@@ -136,6 +136,17 @@ add_custom_command(
 	)
 ADD_CUSTOM_TARGET(WDC65C02_table ALL DEPENDS ${CMAKE_BINARY_DIR}/t65c02.c)
 
+# --- WLA_TARGET=WDC65C02OE
+add_executable (gen_WDC65C02OE ${CFILES})
+set_target_properties (gen_WDC65C02OE PROPERTIES COMPILE_DEFINITIONS "WDC65C02OE")
+# Generate tables
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/opcodes_65c02oe_tables.c
+	COMMAND gen_WDC65C02OE
+	DEPENDS gen_WDC65C02OE
+	)
+ADD_CUSTOM_TARGET(WDC65C02OE_table ALL DEPENDS ${CMAKE_BINARY_DIR}/opcodes_65c02oe_tables.c)
+
 # --- WLA_TARGET=CSG65CE02
 add_executable (gen_CSG65CE02 ${CFILES})
 set_target_properties (gen_CSG65CE02 PROPERTIES COMPILE_DEFINITIONS "CSG65CE02")

@@ -29,6 +29,11 @@ make
 start gen
 
 if exist main.o del main.o
+set WLA_TARGET=WDC65C02OE
+make
+start gen
+
+if exist main.o del main.o
 set WLA_TARGET=CSG65CE02
 make
 start gen

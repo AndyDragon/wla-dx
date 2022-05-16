@@ -20,6 +20,9 @@
 #ifdef WDC65C02
 #include "../i65c02.c"
 #endif
+#ifdef WDC65C02OE
+#include "../opcodes_65c02oe.c"
+#endif
 #ifdef W65816
 #include "../i65816.c"
 #endif

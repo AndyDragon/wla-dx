@@ -29,7 +29,7 @@ extern struct instruction g_instructions_table[];
 extern struct macro_runtime *g_macro_stack, *g_macro_runtime_current;
 extern struct active_file_info *g_active_file_info_first, *g_active_file_info_last, *g_active_file_info_tmp;
 
-#if defined(MCS6502) || defined(WDC65C02) || defined(CSG65CE02) || defined(W65816) || defined(HUC6280) || defined(MC6800) || defined(MC6801) || defined(MC6809)
+#if defined(MCS6502) || defined(WDC65C02) || defined(WDC65C02OE) || defined(CSG65CE02) || defined(W65816) || defined(HUC6280) || defined(MC6800) || defined(MC6801) || defined(MC6809)
 extern int g_xbit_size, g_accu_size, g_index_size;
 #endif
 
@@ -1027,7 +1027,7 @@ static int _mc68000_parse_register(char *code, int *index, int *reg, int *mode) 
 int evaluate_token(void) {
 
   int f, x, y, last_stack_id_backup, instruction_i;
-#if defined(Z80) || defined(Z80N) || defined(SPC700) || defined(W65816) || defined(WDC65C02) || defined(CSG65CE02) || defined(HUC6280)
+#if defined(Z80) || defined(Z80N) || defined(SPC700) || defined(W65816) || defined(WDC65C02) || defined(WDC65C02OE) || defined(CSG65CE02) || defined(HUC6280)
   int e, v, h;
   char labelx[MAX_NAME_LENGTH + 1];
 #endif
@@ -2300,6 +2300,251 @@ int evaluate_token(void) {
       /*************************************************************************************************/
       /*************************************************************************************************/
       
+#endif
+
+#if defined(WDC65C02OE)
+
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /* <65C02OE> */
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+
+    case 0:
+      for ( ; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+        if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+          _output_assembled_instruction(s_instruction_tmp, "d%d ", s_instruction_tmp->hex);
+          g_source_index = s_parser_source_index;
+          return SUCCEEDED;
+        }
+        if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+          break;
+      }
+      break;
+
+    case 6:
+    case 1:
+      if (g_xbit_size > 8 && s_instruction_tmp->skip_8bit == 1)
+        break;
+      for ( ; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+        if (s_instruction_tmp->string[x] == 'x') {
+          y = g_source_index;
+          g_source_index = s_parser_source_index;
+          z = input_number();
+          s_parser_source_index = g_source_index;
+          g_source_index = y;
+
+          if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL || z == INPUT_NUMBER_STACK))
+            return FAILED;
+          if (z == SUCCEEDED && (g_parsed_int > 255 || g_parsed_int < -128))
+            break;
+          if (g_operand_hint == HINT_16BIT)
+            break;
+
+          for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+            if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+              if (z == SUCCEEDED)
+                _output_assembled_instruction(s_instruction_tmp, "d%d d%d ", s_instruction_tmp->hex, g_parsed_int);
+              else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                _output_assembled_instruction(s_instruction_tmp, "k%d d%d R%s ", g_active_file_info_last->line_current, s_instruction_tmp->hex, g_label);
+              else {
+                _output_assembled_instruction(s_instruction_tmp, "d%d c%d ", s_instruction_tmp->hex, g_latest_stack);
+                if (s_instruction_tmp->type == 6) {
+                  /* 6 -> let's configure the stack so that all label references inside are relative */
+                  struct stack *stack = find_stack_calculation(g_latest_stack, YES);
+
+                  if (stack == NULL)
+                    return FAILED;
+
+                  stack->relative_references = 1;
+                }
+              }
+
+              g_source_index = s_parser_source_index;
+              return SUCCEEDED;
+            }
+            if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+              break;
+          }
+        }
+        if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+          break;
+      }
+      break;
+
+    case 2:
+      for ( ; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+        if (s_instruction_tmp->string[x] == '?') {
+          y = g_source_index;
+          g_source_index = s_parser_source_index;
+          z = input_number();
+          s_parser_source_index = g_source_index;
+          g_source_index = y;
+          if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL || z == INPUT_NUMBER_STACK))
+            return FAILED;
+          if (z == SUCCEEDED && (g_parsed_int > 65535 || g_parsed_int < -32768)) {
+            print_error(ERROR_NUM, "Out of 16-bit range.\n");
+            return FAILED;
+          }
+
+          for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+            if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+              if (z == SUCCEEDED)
+                _output_assembled_instruction(s_instruction_tmp, "d%d y%d ", s_instruction_tmp->hex, g_parsed_int);
+              else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                _output_assembled_instruction(s_instruction_tmp, "k%d d%d r%s ", g_active_file_info_last->line_current, s_instruction_tmp->hex, g_label);
+              else
+                _output_assembled_instruction(s_instruction_tmp, "d%d C%d ", s_instruction_tmp->hex, g_latest_stack);
+
+              g_source_index = s_parser_source_index;
+              return SUCCEEDED;
+            }
+            if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+              break;
+          }
+        }
+        if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+          break;
+      }
+      break;
+
+    case 3:
+      for ( ; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+        if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+          _output_assembled_instruction(s_instruction_tmp, "y%d ", s_instruction_tmp->hex);
+          g_source_index = s_parser_source_index;
+          return SUCCEEDED;
+        }
+        if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+          break;
+      }
+      break;
+
+    case 4:
+      if (g_xbit_size > 8 && s_instruction_tmp->skip_8bit == 1)
+        break;
+      for ( ; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+        if (s_instruction_tmp->string[x] == 'x') {
+          y = g_source_index;
+          g_source_index = s_parser_source_index;
+          z = input_number();
+          s_parser_source_index = g_source_index;
+          g_source_index = y;
+
+          if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL || z == INPUT_NUMBER_STACK))
+            return FAILED;
+          if (z == SUCCEEDED && (g_parsed_int > 255 || g_parsed_int < -128))
+            break;
+          if (g_operand_hint == HINT_16BIT)
+            break;
+
+          for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+            if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+              if (z == SUCCEEDED)
+                _output_assembled_instruction(s_instruction_tmp, "d%d d%d ", s_instruction_tmp->hex, g_parsed_int);
+              else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                _output_assembled_instruction(s_instruction_tmp, "k%d d%d Q%s ", g_active_file_info_last->line_current, s_instruction_tmp->hex, g_label);
+              else
+                _output_assembled_instruction(s_instruction_tmp, "d%d c%d ", s_instruction_tmp->hex, g_latest_stack);
+
+              g_source_index = s_parser_source_index;
+              return SUCCEEDED;
+            }
+            if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+              break;
+          }
+        }
+        if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+          break;
+      }
+      break;
+
+    case 5:
+      for ( ; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+        if (s_instruction_tmp->string[x] == 'x') {
+          y = g_source_index;
+          g_source_index = s_parser_source_index;
+          z = input_number();
+          s_parser_source_index = g_source_index;
+          g_source_index = y;
+          if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL || z == INPUT_NUMBER_STACK))
+            return FAILED;
+          if (z == SUCCEEDED && (g_parsed_int > 255 || g_parsed_int < -128))
+            break;
+
+          e = g_parsed_int;
+          v = z;
+          h = g_latest_stack;
+          if (z == INPUT_NUMBER_ADDRESS_LABEL)
+            strcpy(labelx, g_label);
+
+          for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+            if (s_instruction_tmp->string[x] == 'x') {
+              y = g_source_index;
+              g_source_index = s_parser_source_index;
+              z = input_number();
+              s_parser_source_index = g_source_index;
+              g_source_index = y;
+              if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL || z == INPUT_NUMBER_STACK))
+                return FAILED;
+              if (z == SUCCEEDED && (g_parsed_int > 255 || g_parsed_int < -128))
+                break;
+
+              for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                  _output_assembled_instruction(s_instruction_tmp, "k%d ", g_active_file_info_last->line_current);
+
+                  if (v == SUCCEEDED)
+                    _output_assembled_instruction(s_instruction_tmp, "d%d d%d ", s_instruction_tmp->hex, e);
+                  else if (v == INPUT_NUMBER_ADDRESS_LABEL)
+                    _output_assembled_instruction(s_instruction_tmp, "d%d Q%s ", s_instruction_tmp->hex, labelx);
+                  else
+                    _output_assembled_instruction(s_instruction_tmp, "d%d c%d ", s_instruction_tmp->hex, h);
+
+                  if (z == SUCCEEDED)
+                    _output_assembled_instruction(s_instruction_tmp, "d%d ", g_parsed_int);
+                  else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                    _output_assembled_instruction(s_instruction_tmp, "R%s ", g_label);
+                  else {
+                    struct stack *stack;
+
+                    _output_assembled_instruction(s_instruction_tmp, "c%d ", g_latest_stack);
+
+                    /* let's configure the stack so that all label references inside are relative */
+                    stack = find_stack_calculation(g_latest_stack, YES);
+
+                    if (stack == NULL)
+                      return FAILED;
+
+                    stack->relative_references = 1;
+                  }
+
+                  g_source_index = s_parser_source_index;
+                  return SUCCEEDED;
+                }
+                if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+                  break;
+              }
+            }
+            if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+              break;
+          }
+        }
+        if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+          break;
+      }
+      break;
+
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /* </65C02OE> */
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+
 #endif
 
 #if defined(CSG65CE02)

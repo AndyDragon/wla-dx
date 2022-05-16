@@ -157,7 +157,7 @@ static int s_dstruct_status = OFF;
 static int s_enumid_defined = 0, s_enumid = 0, s_enumid_adder = 1, s_enumid_export = 0;
 static int s_repeat_active = 0, s_saved_structures_max = 0, s_skip_elifs[256];
 
-#if defined(MCS6502) || defined(WDC65C02) || defined(CSG65CE02) || defined(W65816) || defined(HUC6280) || defined(MC6800) || defined(MC6801) || defined(MC6809)
+#if defined(MCS6502) || defined(WDC65C02) || defined(WDC65C02OE) || defined(CSG65CE02) || defined(W65816) || defined(HUC6280) || defined(MC6800) || defined(MC6801) || defined(MC6809)
 int g_xbit_size = 0, g_accu_size = 8, g_index_size = 8;
 #endif
 
@@ -11107,7 +11107,7 @@ int parse_directive(void) {
   switch (c) {
   case '1':
 
-#if defined(MCS6502) || defined(W65816) || defined(WDC65C02) || defined(CSG65CE02) || defined(HUC6280) || defined(MC6800) || defined(MC6801) || defined(MC6809)
+#if defined(MCS6502) || defined(W65816) || defined(WDC65C02) || defined(WDC65C02OE) || defined(CSG65CE02) || defined(HUC6280) || defined(MC6800) || defined(MC6801) || defined(MC6809)
     /* 16BIT */
     if (strcmp(directive_upper, "16BIT") == 0) {
       g_xbit_size = 16;
@@ -11131,7 +11131,7 @@ int parse_directive(void) {
     
   case '8':
 
-#if defined(MCS6502) || defined(W65816) || defined(WDC65C02) || defined(CSG65CE02) || defined(HUC6280) || defined(MC6800) || defined(MC6801) || defined(MC6809)
+#if defined(MCS6502) || defined(W65816) || defined(WDC65C02) || defined(WDC65C02OE) || defined(CSG65CE02) || defined(HUC6280) || defined(MC6800) || defined(MC6801) || defined(MC6809)
     /* 8BIT */
     if (strcmp(directive_upper, "8BIT") == 0) {
       g_xbit_size = 8;

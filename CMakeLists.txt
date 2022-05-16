@@ -12,6 +12,7 @@ set(ARCHS
     # wla-NAME:compile-def
     "gb:GB"
     "65c02:WDC65C02"
+    "65c02oe:WDC65C02OE"
     "65ce02:CSG65CE02"
     "6502:MCS6502"
     "65816:W65816"

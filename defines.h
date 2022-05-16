@@ -175,6 +175,7 @@
 /* 2 - ?              */
 /* 3 - plain text 16b */
 /* 4 - x (absolute)   */
+/* 5 - x-rel          */
 
 #define INSTRUCTION_STRING_LENGTH_MAX 12
 #define ARCH_STR "6502"
@@ -196,10 +197,33 @@
 /* 3 - plain text 16b */
 /* 4 - x (absolute)   */
 /* 5 - x-abs x-rel    */
+/* 6 - x-rel          */
 
 #define INSTRUCTION_STRING_LENGTH_MAX 12
 #define ARCH_STR "WDC65C02"
 #define WLA_NAME "65c02"
+
+#endif
+
+/**************************************************************/
+/* 65C02OE                                                    */
+/**************************************************************/
+
+#ifdef WDC65C02OE
+
+/* opcode types */
+
+/* 0 - plain text  8b */
+/* 1 - x              */
+/* 2 - ?              */
+/* 3 - plain text 16b */
+/* 4 - x (absolute)   */
+/* 5 - x-abs x-rel    */
+/* 6 - x-rel          */
+
+#define INSTRUCTION_STRING_LENGTH_MAX 12
+#define ARCH_STR "WDC65C02OE"
+#define WLA_NAME "65c02oe"
 
 #endif
 
@@ -532,7 +556,7 @@ struct instruction {
 #if defined(Z80) || defined(Z80N) || defined(GB) || defined(I8008) || defined(I8080)
   unsigned char value;
 #endif
-#if defined(MCS6502) || defined(WDC65C02) || defined(CSG65CE02) || defined(HUC6280) || defined(MC6800) || defined(MC6801) || defined(MC6809)
+#if defined(MCS6502) || defined(WDC65C02) || defined(WDC65C02OE) || defined(CSG65CE02) || defined(HUC6280) || defined(MC6800) || defined(MC6801) || defined(MC6809)
   unsigned char skip_8bit;
 #endif
 #if defined(W65816)
