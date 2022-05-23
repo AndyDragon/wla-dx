@@ -180,3 +180,14 @@ add_custom_command(
 	)
 ADD_CUSTOM_TARGET(HUC6280_table ALL DEPENDS ${CMAKE_BINARY_DIR}/thuc6280.c)
 
+# --- WLA_TARGET=AD1251
+add_executable (gen_AD1251 ${CFILES})
+set_target_properties (gen_AD1251 PROPERTIES COMPILE_DEFINITIONS "AD1251")
+# Generate tables
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/opcodes_ad1251_tables.c
+	COMMAND gen_AD1251
+	DEPENDS gen_AD1251
+	)
+ADD_CUSTOM_TARGET(AD1251_table ALL DEPENDS ${CMAKE_BINARY_DIR}/opcodes_ad1251_tables.c)
+

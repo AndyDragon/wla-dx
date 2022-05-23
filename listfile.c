@@ -272,6 +272,9 @@ int listfile_collect(void) {
 #if defined(W65816)
     case 'M':
 #endif
+#if defined(AD1251)
+    case 'M':
+#endif
     case 'r':
       err = fscanf(g_file_out_ptr, "%*s ");
       if (err < 0)

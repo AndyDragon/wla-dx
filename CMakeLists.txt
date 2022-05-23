@@ -26,6 +26,7 @@ set(ARCHS
     "8008:I8008"
     "8080:I8080"
     "superfx:SUPERFX"
+    "ad1251:AD1251"
     )
 
 option(GDB_DEBUGGING

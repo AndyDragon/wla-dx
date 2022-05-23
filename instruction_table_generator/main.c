@@ -39,6 +39,26 @@ int print_table(FILE *f, int *table) {
 }
 
 
+int dump_op_codes(FILE *f, struct instruction *instructions_table) {
+
+  int i,j;
+
+  for (i = 0; i < 256; i++) {
+    j = 0;
+    while (TRUE) {
+      if (instructions_table[j].hex == i) {
+        fprintf(f, "%02x : %s\n", instructions_table[j].hex, instructions_table[j].string);
+      }
+      j++;
+      if (instructions_table[j].type == 0xff)
+        break;
+    }
+  }
+
+  return SUCCEEDED;
+}
+
+
 int main(int argc, char *argv[]) {
 
   struct instruction *opt_tmp;
@@ -46,6 +66,7 @@ int main(int argc, char *argv[]) {
   char max_name[256];
   unsigned int max = 0;
   int i, upper_char, lower_char, last_lower_char;
+  char dump_table = TRUE;
 
   /* table containing the the number of entries we have in g_instructions_table starting with each ASCII characher */
   int counts[256], count;
@@ -109,6 +130,7 @@ int main(int argc, char *argv[]) {
 
   out = stdout;
   if (outname) {
+    dump_table = FALSE;
     out = fopen(outname, "wb");
     if (out == NULL) {
       fprintf(stderr, "MAIN: Unable to open file \"%s\": %s\n", outname, strerror(errno));
@@ -121,6 +143,10 @@ int main(int argc, char *argv[]) {
 
   fprintf(out, "int g_instruction_p[256] = {\n");
   print_table(out, indexes);
+
+  if (dump_table) {
+    dump_op_codes(out, g_instructions_table);
+  }
 
   if (outname)
     fclose(out);

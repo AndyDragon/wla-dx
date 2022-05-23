@@ -74,6 +74,11 @@ make
 start gen
 
 if exist main.o del main.o
+set WLA_TARGET=AD1251
+make
+start gen
+
+if exist main.o del main.o
 
 exit
 

@@ -504,6 +504,44 @@
 
 #endif
 
+/**************************************************************/
+/* AD1251                                                     */
+/**************************************************************/
+
+#ifdef AD1251
+
+/* opcode types */
+
+/* 0  - plain text                                        */
+/* 1  - *=0-15, *=0-15                                    */
+/* 2  - *=0-15, ?=16-bit                                  */
+/* 3  - *=0-15, x=8-bit                                   */
+/* 4  - *=0-15, *=0-15, ?=16-bit                          */
+/* 5  - ?=16-bit, *=0-15                                  */
+/* 6  - *=0-15, ?=16-bit, *=0-15                          */
+/* 7  - *=0-15, *=0-15, *=0-15                            */
+/* 8  - *=0-15                                            */
+/* 9  - *=0-15, *=0-15, *=0-15 - skip range check on last */
+/* 10 - x=8-bit, *=0-15                                   */
+/* 11 - x=8-bit, ?=16-bit                                 */
+/* 12 - e=relative                                        */
+/* 13 - ?=16-bit                                          */
+/* 14 - x=8-bit                                           */
+/* 15 - *=0-15, *=0-15, *=0-15 SCRN                       */
+/* 16 - *=0-15, *=0-15, *=0-15, ?=16-bit SCRN             */
+/* 17 - *=0-15, *=0-15, ?=16-bit, *=0-15, ?=16-bit SCRN   */
+/* 18 - *=0-15, ?=16-bit, *=0-15, ?=16-bit, *=0-15 SCRN   */
+/* 19 - *=0-15, *=0-15, *=0-15 SCRN                       */
+/* 20 - *=0-15, *=0-15, ?=16-bit, *=0-15 SCRN             */
+/* 21 - *=0-15, ?=16-bit, *=0-15, *=0-15 SCRN             */
+/* 22 - *=0-15, ?=16-bit, *=0-15, ?=16-bit, *=0-15 SCRN   */
+/* 23 - b=8-bit bank, ?=16-bit                            */
+
+#define INSTRUCTION_STRING_LENGTH_MAX 22
+#define ARCH_STR "AD1251"
+#define WLA_NAME "ad1251"
+
+#endif
 
 #if defined(SUPERFX)
 
@@ -514,6 +552,16 @@ struct instruction {
   unsigned char prefix;
   unsigned char min;
   unsigned char max;
+};
+
+#elif defined(AD1251)
+
+struct instruction {
+  char *string;
+  unsigned char type;
+  unsigned short hex;
+  unsigned short allowed_dst;
+  unsigned short allowed_src;
 };
 
 #else
