@@ -571,6 +571,12 @@ static int _show_headers_and_footers_information(void) {
     i += 2;
     prints++;
   }
+
+  if (g_output_type == OUTPUT_TYPE_AD1_PROG) {
+    printf("4 additional bytes from the AD PROG header.\n");
+    i += 4;
+    prints++;
+  }
   
   if (g_smc_status != 0) {
     print_text(YES, "512 additional bytes from the SMC ROM header.\n");
@@ -1009,6 +1015,8 @@ static int _parse_flags(char **flags, int flagc) {
         /* get arg */
         if (!strcmp(flags[count + 1], "CBMPRG"))
           g_output_type = OUTPUT_TYPE_CBM_PRG;
+        else if (!strcmp(flags[count + 1], "AD1PROG"))
+          g_output_type = OUTPUT_TYPE_AD1_PROG;
         else
           return FAILED;
       }
@@ -1207,7 +1215,7 @@ int main(int argc, char *argv[]) {
     print_text(YES, "-S  Write also a WLA symbol file\n");
     print_text(YES, "-SX <WIDTH> The number of characters per line in console (default %d)\n", DEFAULT_SCREEN_DX);
     print_text(YES, "-SY <HEIGHT> The number of lines in console (default %d)\n", DEFAULT_SCREEN_DY);
-    print_text(YES, "-t <TYPE> Output type (supported types: 'CBMPRG')\n");
+    print_text(YES, "-t <TYPE> Output type (supported types: 'CBMPRG', 'AD1PROG')\n");
     print_text(YES, "-v  Verbose messages (all)\n");
     print_text(YES, "-v1 Verbose messages (only discard sections)\n");
     print_text(YES, "-v2 Verbose messages (-v1 plus short summary)\n");

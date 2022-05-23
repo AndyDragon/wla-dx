@@ -1024,6 +1024,37 @@ static int _mc68000_parse_register(char *code, int *index, int *reg, int *mode) 
 #endif
 
 
+#if defined(AD1251)
+
+/* parse a number [mask] */
+int _parse_tiny_int(int allowedMask) {
+
+  int old_s, value, res, mask;
+
+  old_s = g_source_index;
+  g_source_index = s_parser_source_index;
+  res = input_number();
+  s_parser_source_index = g_source_index;
+  g_source_index = old_s;
+
+  if (res != SUCCEEDED)
+    return -1;
+
+  value = g_parsed_int;
+
+  if (value < 0 || value > 15)
+    return -1;
+
+  mask = 1 << value;
+  if ((allowedMask & mask) != mask)
+    return -1;
+
+  return value;
+}
+
+#endif
+
+
 int evaluate_token(void) {
 
   int f, x, y, last_stack_id_backup, instruction_i;
@@ -1043,6 +1074,18 @@ int evaluate_token(void) {
 #endif
 #if defined(SUPERFX)
   int tiny;
+#endif
+#if defined(AD1251)
+  int reg_d;
+  int reg_d2;
+  int reg_s;
+  int reg_s2;
+  int stored_z;
+  int stored_parsed_int;
+  char stored_label[MAX_NAME_LENGTH + 1];
+  int stored2_z;
+  int stored2_parsed_int;
+  char stored2_label[MAX_NAME_LENGTH + 1];
 #endif
   
   /* are we in an enum, ramsection, or struct? */
@@ -8833,6 +8876,1645 @@ int evaluate_token(void) {
       
 #endif
       
+#if defined(AD1251)
+
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /* <AD1251> */
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+
+    case 0: /* plain text */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0a) {
+            _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+            _output_assembled_instruction(s_instruction_tmp, "d%d ", s_instruction_tmp->hex); /* d = 1-byte data */
+
+            print_debug("Type 0: {passed test for %s}\n", s_instruction_tmp->string);
+
+            g_source_index = s_parser_source_index;
+            return SUCCEEDED;
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 0: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 0: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 1: /* *=0-15, *=0-15 */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '*') {
+                reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                if (reg_s < 0) {
+                  print_error(ERROR_NUM, "Invalid source register.\n");
+                  return FAILED;
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                    _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                    _output_assembled_instruction(s_instruction_tmp, "d%d d%d ", s_instruction_tmp->hex, (reg_d << 4) | reg_s); /* d = 1-byte data */
+
+                    print_debug("Type 1: {passed test for %s}\n", s_instruction_tmp->string);
+
+                    g_source_index = s_parser_source_index;
+                    return SUCCEEDED;
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 1: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 1: {end of test for %s - looking for source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 1: {end of test for %s - looking for destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 1: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 2: /* *=0-15, ?=16-bit */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '?') {
+                y = g_source_index;
+                g_source_index = s_parser_source_index;
+                z = input_number();
+                s_parser_source_index = g_source_index;
+                g_source_index = y;
+                if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL)) {
+                  print_error(ERROR_NUM, "Input number failed.\n");
+                  return FAILED;
+                }
+                if (z == SUCCEEDED) {
+                  if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                    print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                    return FAILED;
+                  }
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                    _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                    if (z == SUCCEEDED)
+                      _output_assembled_instruction(s_instruction_tmp, "d%d d%d y%d ", s_instruction_tmp->hex, reg_d << 4, g_parsed_int); /* d = 1-byte data, y = 2-byte data */
+                    else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                      _output_assembled_instruction(s_instruction_tmp, "d%d d%d r%s ", s_instruction_tmp->hex, reg_d << 4, g_label); /* d = 1-byte data, r = 2-byte reference */
+
+                    print_debug("Type 2: {passed test for %s}\n", s_instruction_tmp->string);
+
+                    g_source_index = s_parser_source_index;
+                    return SUCCEEDED;
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 2: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 2: {end of test for %s - looking for value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 2: {end of test for %s - looking for destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 2: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 3: /* *=0-15, x=8-bit */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == 'x') {
+                y = g_source_index;
+                g_source_index = s_parser_source_index;
+                z = input_number();
+                s_parser_source_index = g_source_index;
+                g_source_index = y;
+                if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL)) {
+                  print_error(ERROR_NUM, "Input number failed.\n");
+                  return FAILED;
+                }
+                if (z == SUCCEEDED) {
+                  if (g_parsed_int > 255 || g_parsed_int < -128) {
+                    print_error(ERROR_NUM, "Out of 8-bit range.\n");
+                    return FAILED;
+                  }
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                    _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                    if (z == SUCCEEDED)
+                      _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d ", s_instruction_tmp->hex, reg_d << 4, g_parsed_int); /* d = 1-byte data */
+                    else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                      _output_assembled_instruction(s_instruction_tmp, "d%d d%d Q%s ", s_instruction_tmp->hex, reg_d << 4, g_label); /* d = 1-byte data, Q = 1-byte reference */
+
+                    print_debug("Type 3: {passed test for %s}\n", s_instruction_tmp->string);
+
+                    g_source_index = s_parser_source_index;
+                    return SUCCEEDED;
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 3: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 3: {end of test for %s - looking for value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 3: {end of test for %s - looking for destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 3: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 4: /* *=0-15, *=0-15, ?=16-bit */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '*') {
+                reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                if (reg_s < 0) {
+                  print_error(ERROR_NUM, "Invalid source register.\n");
+                  return FAILED;
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == '?') {
+                    y = g_source_index;
+                    g_source_index = s_parser_source_index;
+                    z = input_number();
+                    s_parser_source_index = g_source_index;
+                    g_source_index = y;
+                    if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL)) {
+                      print_error(ERROR_NUM, "Input number failed.\n");
+                      return FAILED;
+                    }
+                    if (z == SUCCEEDED) {
+                      if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                        print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                        return FAILED;
+                      }
+                    }
+
+                    for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                      if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                        _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                        if (z == SUCCEEDED)
+                          _output_assembled_instruction(s_instruction_tmp, "d%d d%d y%d ", s_instruction_tmp->hex, (reg_d << 4) | reg_s, g_parsed_int); /* d = 1-byte data, y = 2-byte data */
+                        else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                          _output_assembled_instruction(s_instruction_tmp, "d%d d%d r%s ", s_instruction_tmp->hex, (reg_d << 4) | reg_s, g_label); /* d = 1-byte data, r = 2-byte reference */
+
+                        print_debug("Type 4: {passed test for %s}\n", s_instruction_tmp->string);
+
+                        g_source_index = s_parser_source_index;
+                        return SUCCEEDED;
+                      }
+                      if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                        print_debug("Type 4: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                        break;
+                      }
+                    }
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 4: {end of test for %s - looking for value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 4: {end of test for %s - looking for source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 4: {end of test for %s - looking for destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 4: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 5: /* ?=16-bit, *=0-15 */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '?') {
+            y = g_source_index;
+            g_source_index = s_parser_source_index;
+            z = input_number();
+            s_parser_source_index = g_source_index;
+            g_source_index = y;
+            if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL)) {
+              print_error(ERROR_NUM, "Input number failed.\n");
+              return FAILED;
+            }
+            if (z == SUCCEEDED) {
+              if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                return FAILED;
+              }
+              stored_parsed_int = g_parsed_int;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '*') {
+                reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                if (reg_s < 0) {
+                  print_error(ERROR_NUM, "Invalid source register.\n");
+                  return FAILED;
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                    _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                    if (z == SUCCEEDED)
+                      _output_assembled_instruction(s_instruction_tmp, "d%d d%d y%d ", s_instruction_tmp->hex, reg_s, stored_parsed_int); /* d = 1-byte data, y = 2-byte data */
+                    else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                      _output_assembled_instruction(s_instruction_tmp, "d%d d%d r%s ", s_instruction_tmp->hex, reg_s, g_label); /* d = 1-byte data, r = 2-byte reference */
+
+                    print_debug("Type 5: {passed test for %s}\n", s_instruction_tmp->string);
+
+                    g_source_index = s_parser_source_index;
+                    return SUCCEEDED;
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 5: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 5: {end of test for %s - looking for source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 5: {end of test for %s - looking for value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 5: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 6: /* *=0-15, ?=16-bit, *=0-15 */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '?') {
+                y = g_source_index;
+                g_source_index = s_parser_source_index;
+                z = input_number();
+                s_parser_source_index = g_source_index;
+                g_source_index = y;
+                if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL)) {
+                  print_error(ERROR_NUM, "Input number failed.\n");
+                  return FAILED;
+                }
+                if (z == SUCCEEDED) {
+                  if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                    print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                    return FAILED;
+                  }
+                  stored_parsed_int = g_parsed_int;
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == '*') {
+                    reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                    if (reg_s < 0) {
+                      print_error(ERROR_NUM, "Invalid source register.\n");
+                      return FAILED;
+                    }
+
+                    for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                      if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                        _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                        if (z == SUCCEEDED)
+                          _output_assembled_instruction(s_instruction_tmp, "d%d d%d y%d ", s_instruction_tmp->hex, (reg_d << 4) | reg_s, stored_parsed_int); /* d = 1-byte data, y = 2-byte data */
+                        else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                          _output_assembled_instruction(s_instruction_tmp, "d%d d%d r%s ", s_instruction_tmp->hex, (reg_d << 4) | reg_s, g_label); /* d = 1-byte data, r = 2-byte reference */
+
+                        print_debug("Type 6: {passed test for %s}\n", s_instruction_tmp->string);
+
+                        g_source_index = s_parser_source_index;
+                        return SUCCEEDED;
+                      }
+                      if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                        print_debug("Type 6: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                        break;
+                      }
+                    }
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 6: {end of test for %s - looking for source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 6: {end of test for %s - looking for value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 6: {end of test for %s - looking for destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 6: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 7: /* *=0-15, *=0-15, *=0-15 */
+    case 9: /* *=0-15, *=0-15, *=0-15(no range check) */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '*') {
+                reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                if (reg_s < 0) {
+                  if (s_instruction_tmp->type == 7)
+                    print_error(ERROR_NUM, "Invalid operand 1 register.\n");
+                  else
+                    print_error(ERROR_NUM, "Invalid source register.\n");
+                  return FAILED;
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == '*') {
+                    reg_s2 = _parse_tiny_int(s_instruction_tmp->type == 7 ? s_instruction_tmp->allowed_src : 0xffff);
+                    if (reg_s2 < 0) {
+                      if (s_instruction_tmp->type == 7)
+                        print_error(ERROR_NUM, "Invalid operand 2 register.\n");
+                      else
+                        print_error(ERROR_NUM, "Invalid operand register.\n");
+                      return FAILED;
+                    }
+
+                    for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                      if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                        _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                        _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d ", s_instruction_tmp->hex, (reg_d << 4) | reg_s, reg_s2); /* d = 1-byte data */
+
+                        print_debug("Type 7/9: {passed test for %s}\n", s_instruction_tmp->string);
+
+                        g_source_index = s_parser_source_index;
+                        return SUCCEEDED;
+                      }
+                      if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                        print_debug("Type 7/9: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                        break;
+                      }
+                    }
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 7/9: {end of test for %s - looking for operand reg 2 @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 7/9: {end of test for %s - looking for operand reg 1 @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 7/9: {end of test for %s - looking for destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 7/9: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 8: /* *=0-15 */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                _output_assembled_instruction(s_instruction_tmp, "d%d d%d ", s_instruction_tmp->hex, reg_d << 4); /* d = 1-byte data */
+
+                print_debug("Type 8: {passed test for %s}\n", s_instruction_tmp->string);
+
+                g_source_index = s_parser_source_index;
+                return SUCCEEDED;
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 8: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 8: {end of test for %s - looking for destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 8: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 10: /* x=8-bit, *=0-15 */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == 'x') {
+            y = g_source_index;
+            g_source_index = s_parser_source_index;
+            z = input_number();
+            s_parser_source_index = g_source_index;
+            g_source_index = y;
+            if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL)) {
+              print_error(ERROR_NUM, "Input number failed.\n");
+              return FAILED;
+            }
+            if (z == SUCCEEDED) {
+              if (g_parsed_int > 255 || g_parsed_int < -128) {
+                print_error(ERROR_NUM, "Out of 8-bit range.\n");
+                return FAILED;
+              }
+            }
+            stored_z = z;
+            stored_parsed_int = g_parsed_int;
+            if (z == INPUT_NUMBER_ADDRESS_LABEL)
+              strcpy(stored_label, g_label);
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '*') {
+                reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                if (reg_s < 0) {
+                  print_error(ERROR_NUM, "Invalid source register.\n");
+                  return FAILED;
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                    _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                    if (stored_z == SUCCEEDED)
+                      _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d ", s_instruction_tmp->hex, reg_s, stored_parsed_int); /* d = 1-byte data */
+                    else if (stored_z == INPUT_NUMBER_ADDRESS_LABEL)
+                      _output_assembled_instruction(s_instruction_tmp, "d%d d%d Q%s ", s_instruction_tmp->hex, reg_s, stored_label); /* d = 1-byte data, Q = 1-byte reference */
+
+                    print_debug("Type 10: {passed test for %s}\n", s_instruction_tmp->string);
+
+                    g_source_index = s_parser_source_index;
+                    return SUCCEEDED;
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 10: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 10: {end of test for %s - looking for source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 10: {end of test for %s - looking for value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 10: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 11: /* x=8-bit, ?=16-bit */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == 'x') {
+            y = g_source_index;
+            g_source_index = s_parser_source_index;
+            z = input_number();
+            s_parser_source_index = g_source_index;
+            g_source_index = y;
+            if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL)) {
+              print_error(ERROR_NUM, "Input number failed.\n");
+              return FAILED;
+            }
+            if (z == SUCCEEDED) {
+              if (g_parsed_int > 255 || g_parsed_int < -128) {
+                print_error(ERROR_NUM, "Out of 8-bit range.\n");
+                return FAILED;
+              }
+            }
+            stored_z = z;
+            stored_parsed_int = g_parsed_int;
+            if (z == INPUT_NUMBER_ADDRESS_LABEL)
+              strcpy(stored_label, g_label);
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '?') {
+                y = g_source_index;
+                g_source_index = s_parser_source_index;
+                z = input_number();
+                s_parser_source_index = g_source_index;
+                g_source_index = y;
+                if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL)) {
+                  print_error(ERROR_NUM, "Input number failed.\n");
+                  return FAILED;
+                }
+                if (z == SUCCEEDED) {
+                  if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                    print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                    return FAILED;
+                  }
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                    _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                    if (stored_z == SUCCEEDED)
+                      _output_assembled_instruction(s_instruction_tmp, "d%d d%d ", s_instruction_tmp->hex, stored_parsed_int); /* d = 1-byte data */
+                    else if (stored_z == INPUT_NUMBER_ADDRESS_LABEL)
+                      _output_assembled_instruction(s_instruction_tmp, "d%d Q%s ", s_instruction_tmp->hex, stored_label); /* d = 1-byte data, Q = 1-byte reference */
+
+                    if (z == SUCCEEDED)
+                      _output_assembled_instruction(s_instruction_tmp, "y%d ", g_parsed_int); /* y = 2-byte data */
+                    else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                      _output_assembled_instruction(s_instruction_tmp, "r%s ", g_label); /* r = 2-byte reference */
+
+                    print_debug("Type 11: {passed test for %s}\n", s_instruction_tmp->string);
+
+                    g_source_index = s_parser_source_index;
+                    return SUCCEEDED;
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 11: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 11: {end of test for %s - looking for value 2 @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 11: {end of test for %s - looking for value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 11: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 12: /* e=relative */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == 'e') {
+            y = g_source_index;
+            g_source_index = s_parser_source_index;
+            z = input_number();
+            s_parser_source_index = g_source_index;
+            g_source_index = y;
+            if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL))
+              return FAILED;
+            if (z == SUCCEEDED) {
+              if (g_parsed_int > 32767 || g_parsed_int < -32768) {
+                print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                return FAILED;
+              }
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                if (z == SUCCEEDED)
+                  _output_assembled_instruction(s_instruction_tmp, "d%d y%d ", s_instruction_tmp->hex, g_parsed_int); /* d = 1-byte data, y = 2-byte data */
+                else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                  _output_assembled_instruction(s_instruction_tmp, "d%d M%s ", s_instruction_tmp->hex, g_label); /* d = 1-byte data, M = 2-byte pc rel */
+
+                print_debug("Type 12: {passed test for %s}\n", s_instruction_tmp->string);
+
+                g_source_index = s_parser_source_index;
+                return SUCCEEDED;
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 12: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 12: {end of test for %s - looking for value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 12: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 13: /* ?=16-bit */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '?') {
+            y = g_source_index;
+            g_source_index = s_parser_source_index;
+            z = input_number();
+            s_parser_source_index = g_source_index;
+            g_source_index = y;
+            if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL))
+              return FAILED;
+            if (z == SUCCEEDED) {
+              if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                return FAILED;
+              }
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                if (z == SUCCEEDED)
+                  _output_assembled_instruction(s_instruction_tmp, "d%d y%d ", s_instruction_tmp->hex, g_parsed_int); /* d = 1-byte data, y = 2-byte data */
+                else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                  _output_assembled_instruction(s_instruction_tmp, "d%d r%s ", s_instruction_tmp->hex, g_label); /* d = 1-byte data, r = 2-byte reference */
+
+                print_debug("Type 13: {passed test for %s}\n", s_instruction_tmp->string);
+
+                g_source_index = s_parser_source_index;
+                return SUCCEEDED;
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 13: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 13: {end of test for %s - looking for value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 13: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 14: /* x=8-bit */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == 'x') {
+            y = g_source_index;
+            g_source_index = s_parser_source_index;
+            z = input_number();
+            s_parser_source_index = g_source_index;
+            g_source_index = y;
+            if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL))
+              return FAILED;
+            if (z == SUCCEEDED) {
+              if (g_parsed_int > 255 || g_parsed_int < -128) {
+                print_error(ERROR_NUM, "Out of 8-bit range.\n");
+                return FAILED;
+              }
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                if (z == SUCCEEDED)
+                  _output_assembled_instruction(s_instruction_tmp, "d%d d%d ", s_instruction_tmp->hex, g_parsed_int); /* d = 1-byte data */
+                else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                  _output_assembled_instruction(s_instruction_tmp, "d%d r%s ", s_instruction_tmp->hex, g_label); /* d = 1-byte data, r = 2-byte reference */
+
+                print_debug("Type 13: {passed test for %s}\n", s_instruction_tmp->string);
+
+                g_source_index = s_parser_source_index;
+                return SUCCEEDED;
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 13: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 13: {end of test for %s - looking for value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 13: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 15: /* *=0-15, *=0-15, *=0-15 - SCRN */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '*') {
+                reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                if (reg_s < 0) {
+                  print_error(ERROR_NUM, "Invalid source x register.\n");
+                  return FAILED;
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == '*') {
+                    reg_s2 = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                    if (reg_s2 < 0) {
+                      print_error(ERROR_NUM, "Invalid source y register.\n");
+                      return FAILED;
+                    }
+
+                    for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                      if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                        _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                        _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d ", s_instruction_tmp->hex, (reg_d << 4) | 0x00 /* no offset */, (reg_s << 4) | reg_s2);
+
+                        print_debug("Type 15: {passed test for %s}\n", s_instruction_tmp->string);
+
+                        g_source_index = s_parser_source_index;
+                        return SUCCEEDED;
+                      }
+                      if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                        print_debug("Type 15: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                        break;
+                      }
+                    }
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 15: {end of test for %s - looking for y source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 15: {end of test for %s - looking for x source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 15: {end of test for %s - looking for destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 15: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 16: /* *=0-15, *=0-15, *=0-15, ?=16-bit - SCRN */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '*') {
+                reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                if (reg_s < 0) {
+                  print_error(ERROR_NUM, "Invalid source x register.\n");
+                  return FAILED;
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == '*') {
+                    reg_s2 = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                    if (reg_s2 < 0) {
+                      print_error(ERROR_NUM, "Invalid source y register.\n");
+                      return FAILED;
+                    }
+
+                    for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                      if (s_instruction_tmp->string[x] == '?') {
+                        y = g_source_index;
+                        g_source_index = s_parser_source_index;
+                        z = input_number();
+                        s_parser_source_index = g_source_index;
+                        g_source_index = y;
+                        if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL))
+                          return FAILED;
+                        if (z == SUCCEEDED) {
+                          if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                            print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                            return FAILED;
+                          }
+                        }
+
+                        for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                          if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                            _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                            if (z == SUCCEEDED)
+                              _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d y%d ", s_instruction_tmp->hex, (reg_d << 4) | 0x02 /* y offset */, (reg_s << 4) | reg_s2, g_parsed_int);
+                            else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                              _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d r%s ", s_instruction_tmp->hex, (reg_d << 4) | 0x02 /* y offset */, (reg_s << 4) | reg_s2, g_label);
+
+                            print_debug("Type 16: {passed test for %s}\n", s_instruction_tmp->string);
+
+                            g_source_index = s_parser_source_index;
+                            return SUCCEEDED;
+                          }
+                          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                            print_debug("Type 16: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                            break;
+                          }
+                        }
+                      }
+                      if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                        print_debug("Type 16: {end of test for %s - looking for y offset @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                        break;
+                      }
+                    }
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 16: {end of test for %s - looking for y source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 16: {end of test for %s - looking for x source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 16: {end of test for %s - looking for destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 16: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 17: /* *=0-15, *=0-15, ?=16-bit, *=0-15 - SCRN */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '*') {
+                reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                if (reg_s < 0) {
+                  print_error(ERROR_NUM, "Invalid source x register.\n");
+                  return FAILED;
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == '?') {
+                    y = g_source_index;
+                    g_source_index = s_parser_source_index;
+                    z = input_number();
+                    s_parser_source_index = g_source_index;
+                    g_source_index = y;
+                    if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL))
+                      return FAILED;
+                    if (z == SUCCEEDED) {
+                      if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                        print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                        return FAILED;
+                      }
+                    }
+
+                    stored_z = z;
+                    stored_parsed_int = g_parsed_int;
+                    if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                      strcpy(stored_label, g_label);
+
+                    for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                      if (s_instruction_tmp->string[x] == '*') {
+                        reg_s2 = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                        if (reg_s2 < 0) {
+                          print_error(ERROR_NUM, "Invalid source y register.\n");
+                          return FAILED;
+                        }
+
+                        for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                          if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                            _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                            if (stored_z == SUCCEEDED)
+                              _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d y%d ", s_instruction_tmp->hex, (reg_d << 4) | 0x01 /* x offset */, (reg_s << 4) | reg_s2, stored_parsed_int);
+                            else if (stored_z == INPUT_NUMBER_ADDRESS_LABEL)
+                              _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d r%s ", s_instruction_tmp->hex, (reg_d << 4) | 0x01 /* x offset */, (reg_s << 4) | reg_s2, stored_label);
+
+                            print_debug("Type 17: {passed test for %s}\n", s_instruction_tmp->string);
+
+                            g_source_index = s_parser_source_index;
+                            return SUCCEEDED;
+                          }
+                          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                            print_debug("Type 17: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                            break;
+                          }
+                        }
+                      }
+                      if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                        print_debug("Type 17: {end of test for %s - looking for y source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                        break;
+                      }
+                    }
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 17: {end of test for %s - looking for x offset @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 17: {end of test for %s - looking for x source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 17: {end of test for %s - looking for destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 17: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 18: /* *=0-15, *=0-15, ?=16-bit, *=0-15, ?=16-bit - SCRN */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '*') {
+                reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                if (reg_s < 0) {
+                  print_error(ERROR_NUM, "Invalid source x register.\n");
+                  return FAILED;
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == '?') {
+                    y = g_source_index;
+                    g_source_index = s_parser_source_index;
+                    z = input_number();
+                    s_parser_source_index = g_source_index;
+                    g_source_index = y;
+                    if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL))
+                      return FAILED;
+                    if (z == SUCCEEDED) {
+                      if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                        print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                        return FAILED;
+                      }
+                    }
+
+                    stored_z = z;
+                    stored_parsed_int = g_parsed_int;
+                    if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                      strcpy(stored_label, g_label);
+
+                    for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                      if (s_instruction_tmp->string[x] == '*') {
+                        reg_s2 = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                        if (reg_s2 < 0) {
+                          print_error(ERROR_NUM, "Invalid source y register.\n");
+                          return FAILED;
+                        }
+
+                        for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                          if (s_instruction_tmp->string[x] == '?') {
+                            y = g_source_index;
+                            g_source_index = s_parser_source_index;
+                            z = input_number();
+                            s_parser_source_index = g_source_index;
+                            g_source_index = y;
+                            if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL))
+                              return FAILED;
+                            if (z == SUCCEEDED) {
+                              if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                                print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                                return FAILED;
+                              }
+                            }
+
+                            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                              if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                                _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                                if (stored_z == SUCCEEDED)
+                                  _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d y%d ", s_instruction_tmp->hex, (reg_d << 4) | 0x03 /* x and y offset */, (reg_s << 4) | reg_s2,
+                                                               stored_parsed_int);
+                                else if (stored_z == INPUT_NUMBER_ADDRESS_LABEL)
+                                  _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d r%s ", s_instruction_tmp->hex, (reg_d << 4) | 0x03 /* x and y offset */, (reg_s << 4) | reg_s2, stored_label);
+
+                                if (z == SUCCEEDED)
+                                  _output_assembled_instruction(s_instruction_tmp, "y%d ", g_parsed_int); /* y = 2-byte data */
+                                else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                                  _output_assembled_instruction(s_instruction_tmp, "r%s ", g_label); /* K = 4-bit data + 12-bit reference */
+
+                                print_debug("Type 18: {passed test for %s}\n", s_instruction_tmp->string);
+
+                                g_source_index = s_parser_source_index;
+                                return SUCCEEDED;
+                              }
+                              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                                print_debug("Type 18: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                                break;
+                              }
+                            }
+                          }
+                          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                            print_debug("Type 18: {end of test for %s - looking for y offset @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                            break;
+                          }
+                        }
+                      }
+                      if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                        print_debug("Type 18: {end of test for %s - looking for y source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                        break;
+                      }
+                    }
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 18: {end of test for %s - looking for x offset @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 18: {end of test for %s - looking for x source @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 18: {end of test for %s - looking for destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 18: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 19: /* *=0-15, *=0-15, *=0-15 SCRN */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination x register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '*') {
+                reg_d2 = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+                if (reg_d2 < 0) {
+                  print_error(ERROR_NUM, "Invalid destination y register.\n");
+                  return FAILED;
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == '*') {
+                    reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                    if (reg_s < 0) {
+                      print_error(ERROR_NUM, "Invalid source register.\n");
+                      return FAILED;
+                    }
+
+                    for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                      if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                        _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                        _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d ", s_instruction_tmp->hex, reg_s | 0x00 /* no offset */, (reg_d << 4) | reg_d2);
+
+                        print_debug("Type 19: {passed test for %s}\n", s_instruction_tmp->string);
+
+                        g_source_index = s_parser_source_index;
+                        return SUCCEEDED;
+                      }
+                      if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                        print_debug("Type 19: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                        break;
+                      }
+                    }
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 19: {end of test for %s - looking for source / value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 19: {end of test for %s - looking for y destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 19: {end of test for %s - looking for x destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 19: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 20: /* *=0-15, *=0-15, ?=16-bit, *=0-15 SCRN */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination x register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '*') {
+                reg_d2 = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+                if (reg_d2 < 0) {
+                  print_error(ERROR_NUM, "Invalid destination y register.\n");
+                  return FAILED;
+                }
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == '?') {
+                    y = g_source_index;
+                    g_source_index = s_parser_source_index;
+                    z = input_number();
+                    s_parser_source_index = g_source_index;
+                    g_source_index = y;
+                    if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL))
+                      return FAILED;
+                    if (z == SUCCEEDED) {
+                      if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                        print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                        return FAILED;
+                      }
+                    }
+
+                    stored_z = z;
+                    stored_parsed_int = g_parsed_int;
+                    if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                      strcpy(stored_label, g_label);
+
+                    for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                      if (s_instruction_tmp->string[x] == '*') {
+                        reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                        if (reg_s < 0) {
+                          print_error(ERROR_NUM, "Invalid source register.\n");
+                          return FAILED;
+                        }
+
+                        for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                          if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                            _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                            if (stored_z == SUCCEEDED)
+                              _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d y%d ", s_instruction_tmp->hex, reg_s | 0x20 /* y offset */, (reg_d << 4) | reg_d2, stored_parsed_int);
+                            else if (stored_z == INPUT_NUMBER_ADDRESS_LABEL)
+                              _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d r%s ", s_instruction_tmp->hex, reg_s | 0x20 /* y offset */, (reg_d << 4) | reg_d2, stored_label);
+
+                            print_debug("Type 20: {passed test for %s}\n", s_instruction_tmp->string);
+
+                            g_source_index = s_parser_source_index;
+                            return SUCCEEDED;
+                          }
+                          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                            print_debug("Type 20: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                            break;
+                          }
+                        }
+                      }
+                      if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                        print_debug("Type 20: {end of test for %s - looking for source / value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x],
+                                    toupper((int)g_buffer[s_parser_source_index]));
+                        break;
+                      }
+                    }
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 20: {end of test for %s - looking for y offset / value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 20: {end of test for %s - looking for y destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 20: {end of test for %s - looking for x destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 20: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 21: /* *=0-15, ?=16-bit, *=0-15, *=0-15 SCRN */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination x register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '?') {
+                y = g_source_index;
+                g_source_index = s_parser_source_index;
+                z = input_number();
+                s_parser_source_index = g_source_index;
+                g_source_index = y;
+                if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL))
+                  return FAILED;
+                if (z == SUCCEEDED) {
+                  if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                    print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                    return FAILED;
+                  }
+                }
+
+                stored_z = z;
+                stored_parsed_int = g_parsed_int;
+                if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                  strcpy(stored_label, g_label);
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == '*') {
+                    reg_d2 = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+                    if (reg_d2 < 0) {
+                      print_error(ERROR_NUM, "Invalid destination y register.\n");
+                      return FAILED;
+                    }
+
+                    for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                      if (s_instruction_tmp->string[x] == '*') {
+                        reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                        if (reg_s < 0) {
+                          print_error(ERROR_NUM, "Invalid source register.\n");
+                          return FAILED;
+                        }
+
+                        for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                          if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                            _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                            if (stored_z == SUCCEEDED)
+                              _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d y%d ", s_instruction_tmp->hex, reg_s | 0x10 /* x offset */, (reg_d << 4) | reg_d2, stored_parsed_int);
+                            else if (stored_z == INPUT_NUMBER_ADDRESS_LABEL)
+                              _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d r%s ", s_instruction_tmp->hex, reg_s | 0x10 /* x offset */, (reg_d << 4) | reg_d2, stored_label);
+
+                            print_debug("Type 21: {passed test for %s}\n", s_instruction_tmp->string);
+
+                            g_source_index = s_parser_source_index;
+                            return SUCCEEDED;
+                          }
+                          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                            print_debug("Type 21: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                            break;
+                          }
+                        }
+                      }
+                      if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                        print_debug("Type 21: {end of test for %s - looking for source / value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x],
+                                    toupper((int)g_buffer[s_parser_source_index]));
+                        break;
+                      }
+                    }
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 21: {end of test for %s - looking for y destination / value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x],
+                                toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 21: {end of test for %s - looking for x offset @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 21: {end of test for %s - looking for x destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 21: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 22: /* *=0-15, ?=16-bit, *=0-15, ?=16-bit, *=0-15 SCRN */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '*') {
+            reg_d = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+            if (reg_d < 0) {
+              print_error(ERROR_NUM, "Invalid destination x register.\n");
+              return FAILED;
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == '?') {
+                y = g_source_index;
+                g_source_index = s_parser_source_index;
+                z = input_number();
+                s_parser_source_index = g_source_index;
+                g_source_index = y;
+                if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL))
+                  return FAILED;
+                if (z == SUCCEEDED) {
+                  if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                    print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                    return FAILED;
+                  }
+                }
+
+                stored_z = z;
+                stored_parsed_int = g_parsed_int;
+                if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                  strcpy(stored_label, g_label);
+
+                for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                  if (s_instruction_tmp->string[x] == '*') {
+                    reg_d2 = _parse_tiny_int(s_instruction_tmp->allowed_dst);
+                    if (reg_d2 < 0) {
+                      print_error(ERROR_NUM, "Invalid destination y register.\n");
+                      return FAILED;
+                    }
+
+                    for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                      if (s_instruction_tmp->string[x] == '?') {
+                        y = g_source_index;
+                        g_source_index = s_parser_source_index;
+                        z = input_number();
+                        s_parser_source_index = g_source_index;
+                        g_source_index = y;
+                        if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL))
+                          return FAILED;
+                        if (z == SUCCEEDED) {
+                          if (g_parsed_int > 65535 || g_parsed_int < -32768) {
+                            print_error(ERROR_NUM, "Out of 16-bit range.\n");
+                            return FAILED;
+                          }
+                        }
+
+                        stored2_z = z;
+                        stored2_parsed_int = g_parsed_int;
+                        if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                          strcpy(stored2_label, g_label);
+
+                        for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                          if (s_instruction_tmp->string[x] == '*') {
+                            reg_s = _parse_tiny_int(s_instruction_tmp->allowed_src);
+                            if (reg_s < 0) {
+                              print_error(ERROR_NUM, "Invalid source register.\n");
+                              return FAILED;
+                            }
+
+                            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+                              if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                                _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                                if (stored_z == SUCCEEDED)
+                                  _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d y%d ", s_instruction_tmp->hex, reg_s | 0x30 /* x and y offset */, (reg_d << 4) | reg_d2, stored_parsed_int);
+                                else if (stored_z == INPUT_NUMBER_ADDRESS_LABEL)
+                                  _output_assembled_instruction(s_instruction_tmp, "d%d d%d d%d r%s ", s_instruction_tmp->hex, reg_s | 0x30 /* x amd y offset */, (reg_d << 4) | reg_d2, stored_label);
+
+                                if (stored2_z == SUCCEEDED)
+                                  _output_assembled_instruction(s_instruction_tmp, "y%d ", stored2_parsed_int); /* d = 1-byte data, y = 2-byte data */
+                                else if (stored2_z == INPUT_NUMBER_ADDRESS_LABEL)
+                                  _output_assembled_instruction(s_instruction_tmp, "r%s ", stored2_label); /* d = 1-byte data, K = 4-bit data + 12-bit reference */
+
+                                print_debug("Type 22: {passed test for %s}\n", s_instruction_tmp->string);
+
+                                g_source_index = s_parser_source_index;
+                                return SUCCEEDED;
+                              }
+                              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                                print_debug("Type 22: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                                break;
+                              }
+                            }
+                          }
+                          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                            print_debug("Type 22: {end of test for %s - looking for source / value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x],
+                                        toupper((int)g_buffer[s_parser_source_index]));
+                            break;
+                          }
+                        }
+                      }
+                      if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                        print_debug("Type 22: {end of test for %s - looking for y offset / value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x],
+                                    toupper((int)g_buffer[s_parser_source_index]));
+                        break;
+                      }
+                    }
+                  }
+                  if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                    print_debug("Type 22: {end of test for %s - looking for y destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                    break;
+                  }
+                }
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 22: {end of test for %s - looking for x offset @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 22: {end of test for %s - looking for x destination @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 22: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    case 23: /* &=24-bit */
+      {
+        for (; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+          if (s_instruction_tmp->string[x] == '&') {
+            y = g_source_index;
+            g_source_index = s_parser_source_index;
+            z = input_number();
+            s_parser_source_index = g_source_index;
+            g_source_index = y;
+            if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL))
+              return FAILED;
+            if (z == SUCCEEDED) {
+              if (g_parsed_int > 16777215 || g_parsed_int < -8388608) {
+                print_error(ERROR_NUM, "Out of 24-bit range.\n");
+                return FAILED;
+              }
+            }
+
+            for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+              if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+                _output_assembled_instruction(s_instruction_tmp, "k%d "); /* k = line number */
+
+                if (z == SUCCEEDED)
+                  _output_assembled_instruction(s_instruction_tmp, "d%d z%d ", s_instruction_tmp->hex, g_parsed_int); /* d = 1-byte data, z = 3-byte data */
+                else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                  _output_assembled_instruction(s_instruction_tmp, "d%d q%s ", s_instruction_tmp->hex, g_label); /* d = 1-byte data, q = 3-byte reference */
+
+                print_debug("Type 23: {passed test for %s}\n", s_instruction_tmp->string);
+
+                g_source_index = s_parser_source_index;
+                return SUCCEEDED;
+              }
+              if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+                print_debug("Type 23: {end of test for %s - looking for end @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+                break;
+              }
+            }
+          }
+          if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index])) {
+            print_debug("Type 23: {end of test for %s - looking for value @ %d - '%c' != '%c'}\n", s_instruction_tmp->string, x, s_instruction_tmp->string[x], toupper((int)g_buffer[s_parser_source_index]));
+            break;
+          }
+        }
+        print_debug("Type 23: {end of test for %s - outside forloop @ %d}\n", s_instruction_tmp->string, x);
+      }
+      break;
+
+    default:
+      {
+        print_error(ERROR_LOG, "Unhandled opcode type: %d\n", s_instruction_tmp->type);
+        return FAILED;
+      }
+
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /* </AD1251> */
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+
+#endif
+
     }
 
     /* perform stack rollback? */

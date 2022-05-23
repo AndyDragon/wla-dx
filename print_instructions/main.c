@@ -26,6 +26,9 @@
 #ifdef SPC700
 #include "../ispc700.c"
 #endif
+#ifdef AD1251
+#include "../opcodes_ad1251.c"
+#endif
 
 
 /* this program is used to print the instructions */

@@ -1503,6 +1503,24 @@ int verify_name_length(char *name) {
 }
 
 
+void print_debug(char *message, ...) {
+#ifdef DEBUG_OUTPUT
+  va_list argptr;
+
+  fprintf(stderr, "DEBUG: %s:%d: ", get_file_name(g_active_file_info_last->filename_id), g_active_file_info_last->line_current);
+
+  va_start(argptr, message);
+  vfprintf(stderr, message, argptr);
+  va_end(argptr);
+
+  fflush(stderr);
+#else
+  if (message) {}
+#endif
+
+  return;
+}
+
 void print_error(int type, char *error, ...) {
 
   char error_dir[] = "DIRECTIVE_ERROR:";

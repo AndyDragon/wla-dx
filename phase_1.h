@@ -25,6 +25,19 @@ void reset_label_stack(void);
 int add_label_to_label_stack(char *l);
 int get_full_label(char *l, char *out);
 
+/* #define DEBUG_OUTPUT */
+
+#ifdef DEBUG_OUTPUT
+#if defined(__GNUC__)
+__attribute__((format(printf, 1, 2)))
+#elif defined(__RESHARPER__)
+[[rscpp::format(printf, 1, 2)]]
+#endif
+void print_debug(char *message, ...);
+#else
+void print_debug(char *message, ...);
+#endif
+
 #if defined(__GNUC__)
 __attribute__((format(printf, 2, 3)))
 #elif defined(__RESHARPER__)
