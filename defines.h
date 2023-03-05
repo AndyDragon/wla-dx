@@ -479,6 +479,25 @@
 #endif
 
 /**************************************************************/
+/* 8085                                                       */
+/**************************************************************/
+
+#ifdef I8085
+
+/* instruction types */
+
+/* 0 - plain text  8b */
+/* 1 - x              */
+/* 2 - ?              */
+/* 8 - *           8b */
+
+#define INSTRUCTION_STRING_LENGTH_MAX 9
+#define ARCH_STR "I8085"
+#define WLA_NAME "8085"
+
+#endif
+
+/**************************************************************/
 /* 65816                                                      */
 /**************************************************************/
 
@@ -529,7 +548,7 @@ struct instruction {
 #if defined(Z80) || defined(Z80N)
   unsigned char hex_x;
 #endif
-#if defined(Z80) || defined(Z80N) || defined(GB) || defined(I8008) || defined(I8080)
+#if defined(Z80) || defined(Z80N) || defined(GB) || defined(I8008) || defined(I8080) || defined(I8085)
   unsigned char value;
 #endif
 #if defined(MCS6502) || defined(WDC65C02) || defined(CSG65CE02) || defined(HUC6280) || defined(MC6800) || defined(MC6801) || defined(MC6809)
