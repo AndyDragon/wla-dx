@@ -114,6 +114,17 @@ add_custom_command(
 	)
 ADD_CUSTOM_TARGET(I8080_table ALL DEPENDS ${CMAKE_BINARY_DIR}/t8080.c)
 
+# --- WLA_TARGET=I8085
+add_executable (gen_I8085 ${CFILES})
+set_target_properties (gen_I8085 PROPERTIES COMPILE_DEFINITIONS "I8085")
+# Generate tables
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/t8085.c
+	COMMAND gen_I8085
+	DEPENDS gen_I8085
+	)
+ADD_CUSTOM_TARGET(I8085_table ALL DEPENDS ${CMAKE_BINARY_DIR}/t8085.c)
+
 # --- WLA_TARGET=MCS6502
 add_executable (gen_MCS6502 ${CFILES})
 set_target_properties (gen_MCS6502 PROPERTIES COMPILE_DEFINITIONS "MCS6502")

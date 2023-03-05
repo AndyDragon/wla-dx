@@ -6849,6 +6849,187 @@ int evaluate_token(void) {
 
 #endif
 
+#if defined(I8085)
+
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /* <8085> */
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+
+    case 0:
+      for ( ; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+        if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+          _output_assembled_instruction(s_instruction_tmp, "d%d ", s_instruction_tmp->hex);
+          g_source_index = s_parser_source_index;
+          return SUCCEEDED;
+        }
+        if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+          break;
+      }
+      break;
+
+    case 1:
+      for ( ; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+        if (s_instruction_tmp->string[x] == 'x' || s_instruction_tmp->string[x] == 's') {
+          y = g_source_index;
+          g_source_index = s_parser_source_index;
+          if (x > 0 && (s_instruction_tmp->string[x-1] == '+' || s_instruction_tmp->string[x-1] == '-'))
+            g_source_index--;
+          z = input_number();
+          s_parser_source_index = g_source_index;
+          g_source_index = y;
+          if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL || z == INPUT_NUMBER_STACK))
+            return FAILED;
+          if (z == SUCCEEDED) {
+            if ((s_instruction_tmp->string[x] == 'x' && (g_parsed_int > 255 || g_parsed_int < -128)) ||
+                (s_instruction_tmp->string[x] == 's' && (g_parsed_int > 127 || g_parsed_int < -128))) {
+              print_error(ERROR_NUM, "Out of 8-bit range.\n");
+              return FAILED;
+            }
+          }
+
+          for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+            if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+              if (z == SUCCEEDED)
+                _output_assembled_instruction(s_instruction_tmp, "d%d d%d ", s_instruction_tmp->hex, g_parsed_int);
+              else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                _output_assembled_instruction(s_instruction_tmp, "k%d d%d R%s ", g_active_file_info_last->line_current, s_instruction_tmp->hex, g_label);
+              else {
+                _output_assembled_instruction(s_instruction_tmp, "d%d c%d ", s_instruction_tmp->hex, g_latest_stack);
+
+                if (s_instruction_tmp->type == 4) {
+                  /* 4 -> let's configure the stack so that all label references inside are relative */
+                  struct stack *stack = find_stack_calculation(g_latest_stack, YES);
+
+                  if (stack == NULL)
+                    return FAILED;
+
+                  stack->relative_references = 1;
+                }
+              }
+
+              g_source_index = s_parser_source_index;
+              return SUCCEEDED;
+            }
+            if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+              break;
+          }
+        }
+        if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+          break;
+      }
+      break;
+
+    case 2:
+      for ( ; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+        if (s_instruction_tmp->string[x] == '?') {
+          y = g_source_index;
+          g_source_index = s_parser_source_index;
+          z = input_number();
+          s_parser_source_index = g_source_index;
+          g_source_index = y;
+          if (!(z == SUCCEEDED || z == INPUT_NUMBER_ADDRESS_LABEL || z == INPUT_NUMBER_STACK))
+            return FAILED;
+          if (z == SUCCEEDED && (g_parsed_int > 65535 || g_parsed_int < -32768)) {
+            print_error(ERROR_NUM, "Out of 16-bit range.\n");
+            return FAILED;
+          }
+
+          for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+            if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+              if (z == SUCCEEDED)
+                _output_assembled_instruction(s_instruction_tmp, "d%d y%d ", s_instruction_tmp->hex, g_parsed_int);
+              else if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                _output_assembled_instruction(s_instruction_tmp, "k%d d%d r%s ", g_active_file_info_last->line_current, s_instruction_tmp->hex, g_label);
+              else
+                _output_assembled_instruction(s_instruction_tmp, "d%d C%d ", s_instruction_tmp->hex, g_latest_stack);
+
+              g_source_index = s_parser_source_index;
+              return SUCCEEDED;
+            }
+            if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+              break;
+          }
+        }
+        if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+          break;
+      }
+      break;
+
+    case 8:
+      for ( ; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+        if (s_instruction_tmp->string[x] == '*') {
+          y = g_source_index;
+          g_source_index = s_parser_source_index;
+          z = input_number();
+          s_parser_source_index = g_source_index;
+          g_source_index = y;
+          if (z != SUCCEEDED || g_parsed_int != s_instruction_tmp->value)
+            break;
+
+          for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+            if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+              _output_assembled_instruction(s_instruction_tmp, "d%d ", s_instruction_tmp->hex);
+              g_source_index = s_parser_source_index;
+              return SUCCEEDED;
+            }
+            if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+              break;
+          }
+        }
+        if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+          break;
+      }
+      break;
+
+    case 100:
+      /* "RST *" that gets delayed to WLALINK */
+      for ( ; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+        if (s_instruction_tmp->string[x] == '*') {
+          y = g_source_index;
+          g_source_index = s_parser_source_index;
+          z = input_number();
+          s_parser_source_index = g_source_index;
+          g_source_index = y;
+          if (!(z == INPUT_NUMBER_ADDRESS_LABEL || z == INPUT_NUMBER_STACK))
+            break;
+
+          for (x++; x < INSTRUCTION_STRING_LENGTH_MAX; s_parser_source_index++, x++) {
+            if (s_instruction_tmp->string[x] == 0 && g_buffer[s_parser_source_index] == 0x0A) {
+              _output_assembled_instruction(s_instruction_tmp, "k%d v3 ", g_active_file_info_last->line_current);
+              if (z == INPUT_NUMBER_ADDRESS_LABEL)
+                _output_assembled_instruction(s_instruction_tmp, "Q%s ", g_label);
+              else
+                _output_assembled_instruction(s_instruction_tmp, "c%d ", g_latest_stack);
+
+              /* reset to "no special case" */
+              _output_assembled_instruction(s_instruction_tmp, "v0 ");
+
+              g_source_index = s_parser_source_index;
+              return SUCCEEDED;
+            }
+            if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+              break;
+          }
+        }
+        if (s_instruction_tmp->string[x] != toupper((int)g_buffer[s_parser_source_index]))
+          break;
+      }
+      break;
+
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /* </8085> */
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+      /*************************************************************************************************/
+
+#endif
+
 #if defined(SPC700)
 
       /*************************************************************************************************/
